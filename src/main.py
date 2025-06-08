@@ -112,27 +112,31 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
 
 @app.post("/upload-url")
 async def upload_url(request: Request, url: str = Form(...)):
+    accept_html = "text/html" in request.headers.get("accept", "")
+
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(url)
             response.raise_for_status()
     except Exception as e:
+        if accept_html:
+            return HTMLResponse(render_form(f"Failed to fetch URL: {e}", is_error=True), status_code=400)
         raise HTTPException(status_code=400, detail=f"Failed to fetch URL: {e}")
 
     content_type = response.headers.get("content-type", "")
     if not is_allowed_mime(content_type):
-        raise HTTPException(
-            status_code=400, detail=f"Unsupported content type: {content_type}"
-        )
-    ext = ALLOWED_IMAGE_TYPES[content_type]
+        if accept_html:
+            return HTMLResponse(render_form(f"Unsupported content type: {content_type}", is_error=True), status_code=400)
+        raise HTTPException(status_code=400, detail=f"Unsupported content type: {content_type}")
 
+    ext = ALLOWED_IMAGE_TYPES[content_type]
     content = response.content
     file_hash = file_hash_bytes(content)
     existing = hash_db.get(file_hash)
 
     if existing:
-        if "text/html" in request.headers.get("accept", ""):
-            return HTMLResponse(render_form("Image exists:", existing), status_code=409)
+        if accept_html:
+            return HTMLResponse(render_form("Image exists:", existing, is_error=True), status_code=409)
         return JSONResponse(
             {"error": "Image already exists", "path": existing}, status_code=409
         )
@@ -149,9 +153,10 @@ async def upload_url(request: Request, url: str = Form(...)):
     rel_path = str(full_path.relative_to(PIC_ROOT))
     hash_db.add(file_hash, rel_path)
 
-    if "text/html" in request.headers.get("accept", ""):
+    if accept_html:
         return HTMLResponse(render_form("Image stored:", rel_path))
     return JSONResponse({"status": "stored", "path": rel_path})
+
 
 
 @app.get("/files/{full_path:path}")

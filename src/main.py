@@ -87,7 +87,7 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
 
     if existing:
         if "text/html" in request.headers.get("accept", ""):
-            return HTMLResponse(render_form("Image exists:", existing), status_code=409)
+            return HTMLResponse(render_form("Image exists:", existing, is_error=True), status_code=409)
         return JSONResponse({"error": "Image already exists", "path": existing}, status_code=409)
 
     ext = ALLOWED_IMAGE_TYPES[content_type]

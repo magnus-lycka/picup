@@ -29,7 +29,7 @@ class HashDB:
     def add(self, hash_val: str, rel_path: str):
         cur = self.conn.cursor()
         cur.execute(
-            "INSERT OR REPLACE INTO images (hash, rel_path) VALUES (?, ?)",
+            "INSERT INTO images (hash, rel_path) VALUES (?, ?)",
             (hash_val, rel_path),
         )
         self.conn.commit()

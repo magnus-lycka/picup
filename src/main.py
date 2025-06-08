@@ -22,8 +22,10 @@ from db import HashDB
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    print("lifespan... before yield")
     await scan_files()
     yield
+    print("lifespan... before yield")
 
 
 # Configuration from environment
@@ -154,6 +156,7 @@ async def scan_files():
     print("🔍 Scanning for unregistered image files...")
     count_added = 0
     for file in PIC_ROOT.rglob("*"):
+        print('.', sep='', end='', flush=True)
         if file.is_file():
             if not is_allowed_ext(file.suffix):
                 continue
@@ -162,7 +165,10 @@ async def scan_files():
                 async with aiofiles.open(file, "rb") as f:
                     content = await f.read()
                     hash_val = file_hash_bytes(content)
-                    if not hash_db.get(hash_val):
+                    if found_path := hash_db.get(hash_val):
+                        if found_path != rel_path:
+                            print(f"\n{rel_path} is identical to {found_path}")
+                    else:
                         hash_db.add(hash_val, rel_path)
                         count_added += 1
             except Exception as e:

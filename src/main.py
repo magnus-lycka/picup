@@ -38,7 +38,15 @@ hash_db = HashDB(DB_PATH)
 app = FastAPI(lifespan=lifespan)
 
 
-def render_form(message: str = "", image_url: str = "") -> str:
+def render_form(message: str = "", image_url: str = "", is_error: bool = False) -> str:
+    bg_color = "#ffdddd" if is_error else "#ddffdd" if message else "transparent"
+    message_block = f"""
+        <div style='background:{bg_color}; padding:1em; border-radius:5px; margin-top:1em;'>
+            <h3>{message}</h3>
+            {f"<img src='/files/{image_url}' style='max-width:400px'>" if image_url else ""}
+        </div>
+    """ if message else ""
+
     return f"""
     <html>
     <head><title>Upload Image</title></head>
@@ -54,8 +62,7 @@ def render_form(message: str = "", image_url: str = "") -> str:
             <input name="url" type="text" size="60" placeholder="https://example.com/image.jpg">
             <input type="submit" value="Fetch and Upload">
         </form>
-        <hr>
-        {f"<h3>{message}</h3><img src='/files/{image_url}' style='max-width:400px'>" if image_url else ""}
+        {message_block}
     </body>
     </html>
     """
@@ -68,9 +75,11 @@ async def upload_form():
 
 @app.post("/upload-file")
 async def upload_file(request: Request, file: UploadFile = File(...)):
-    ext = Path(file.filename).suffix.lower()
-    if not is_allowed_ext(ext):
-        raise HTTPException(status_code=400, detail="Unsupported file type")
+    content_type = file.content_type or ""
+    if not is_allowed_mime(content_type):
+        if "text/html" in request.headers.get("accept", ""):
+            return HTMLResponse(render_form(f"Unsupported content type: {content_type}", is_error=True), status_code=400)
+        raise HTTPException(status_code=400, detail=f"Unsupported content type: {content_type}")
 
     content = await file.read()
     file_hash = file_hash_bytes(content)
@@ -79,16 +88,17 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
     if existing:
         if "text/html" in request.headers.get("accept", ""):
             return HTMLResponse(render_form("Image exists:", existing), status_code=409)
-        return JSONResponse(
-            {"error": "Image already exists", "path": existing}, status_code=409
-        )
+        return JSONResponse({"error": "Image already exists", "path": existing}, status_code=409)
 
+    ext = ALLOWED_IMAGE_TYPES[content_type]
     client_ip = request.client.host or "unknown"
     target_dir = get_storage_path(PIC_ROOT, client_ip)
     target_dir.mkdir(parents=True, exist_ok=True)
 
     safe_name = sanitize_filename(file.filename)
+    safe_name = Path(safe_name).stem + ext  # normalize extension
     full_path = target_dir / safe_name
+
     async with aiofiles.open(full_path, "wb") as f:
         await f.write(content)
 

@@ -24,8 +24,8 @@ async def lifespan(app: FastAPI):
 
 
 # Configuration from environment
-PIC_ROOT = Path(os.getenv("PIC_ROOT", "pics"))
-DB_PATH = Path(os.getenv("DB_PATH", "image_hashes.db"))
+PIC_ROOT = Path(os.getenv("PIC_ROOT", "~/Pictures")).expanduser()
+DB_PATH = Path(os.getenv("DB_PATH", "image_hashes.db")).expanduser()
 
 PIC_ROOT.mkdir(parents=True, exist_ok=True)
 hash_db = HashDB(DB_PATH)

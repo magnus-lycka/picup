@@ -26,6 +26,8 @@ async def lifespan(app: FastAPI):
 # Configuration from environment
 PIC_ROOT = Path(os.getenv("PIC_ROOT", "~/Pictures")).expanduser()
 DB_PATH = Path(os.getenv("DB_PATH", "image_hashes.db")).expanduser()
+THUMB_ROOT = Path(os.getenv("THUMB_ROOT", ".thumbs"))
+THUMB_ROOT.mkdir(parents=True, exist_ok=True)
 
 PIC_ROOT.mkdir(parents=True, exist_ok=True)
 hash_db = HashDB(DB_PATH)
@@ -89,11 +91,7 @@ def build_nav_links(current_path: Path, base_url: str = "/browse") -> dict:
 
 def nav_links_html(nav: dict, prev: str = None, next_: str = None) -> str:
     links = [
-        f"<a href='{nav['upload']}'>Upload Form</a>",
-        f"<a href='{nav['root']}'>Root</a>",
-    ]
-    if nav['parent']:
-        links.append(f"<a href='{nav['parent']}'>Parent</a>")
+        f"<a href='{nav['upload']}'>Upload Form</a>"]
     if prev:
         links.append(f"<a href='{prev}'>Previous</a>")
     if next_:
@@ -134,9 +132,14 @@ async def browse_path(path: str = ""):
             content += "<h3>Files:</h3><div style='display:flex; flex-wrap:wrap;'>"
             for f in files:
                 p = rel_path / f.name
-                content += f"<div style='margin:5px'><a href='/browse/{quote(p.as_posix())}'>{f.name}</a></div>"
+                thumb_url = f"/thumbs/{quote(p.as_posix())}"
+                file_url = f"/browse/{quote(p.as_posix())}"
+                content += (
+                    f"<div style='margin:5px; text-align:center'>"
+                    f"<a href='{file_url}'><img src='{thumb_url}' style='max-width:150px; max-height:150px; display:block; margin:auto'></a>"
+                    f"<div style='font-size:0.8em'>{f.name}</div></div>"
+                )
             content += "</div>"
-
         return HTMLResponse(f"<html><body>{content}</body></html>")
 
     elif target_path.is_file():
@@ -163,6 +166,15 @@ async def browse_path(path: str = ""):
 
     raise HTTPException(status_code=400, detail="Unsupported path")
 
+
+@app.get("/thumbs/{path:path}")
+async def get_thumbnail(path: str):
+    img_path = (PIC_ROOT / path).resolve()
+    if not img_path.exists() or not img_path.is_file():
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    thumb_path = ensure_thumbnail(img_path, PIC_ROOT, THUMB_ROOT)
+    return FileResponse(thumb_path)
 
 
 @app.post("/upload-file")

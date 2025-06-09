@@ -1,23 +1,18 @@
-from contextlib import asynccontextmanager
-from fastapi import FastAPI, UploadFile, File, Form, Request, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
-from pathlib import Path
-import aiofiles
-import httpx
 import os
+from contextlib import asynccontextmanager
+from pathlib import Path
+from urllib.parse import quote
 from uuid import uuid4
 
-from utils import (
-    get_storage_path,
-    sanitize_filename,
-    file_hash_bytes,
-    ALLOWED_IMAGE_TYPES,
-    ALLOWED_EXTENSIONS,
-    is_allowed_mime,
-    is_allowed_ext,
-    get_host_from_url,
-)
+import aiofiles
+import httpx
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+
 from db import HashDB
+from utils import (ALLOWED_IMAGE_TYPES, file_hash_bytes,
+                   get_host_from_url, get_storage_path, is_allowed_ext,
+                   is_allowed_mime, sanitize_filename)
 
 
 @asynccontextmanager
@@ -43,7 +38,7 @@ def render_form(message: str = "", image_url: str = "", is_error: bool = False) 
     message_block = f"""
         <div style='background:{bg_color}; padding:1em; border-radius:5px; margin-top:1em;'>
             <h3>{message}</h3>
-            {f"<img src='/files/{image_url}' style='max-width:400px'>" if image_url else ""}
+            {f"<a href='/browse/{image_url}'><img src='/files/{image_url}' style='max-width:400px'></a>" if image_url else ""}
         </div>
     """ if message else ""
 
@@ -51,6 +46,7 @@ def render_form(message: str = "", image_url: str = "", is_error: bool = False) 
     <html>
     <head><title>Upload Image</title></head>
     <body>
+        <a href="/browse">Browse Images</a>
         <h1>Upload Image</h1>
         <form action="/upload-file" enctype="multipart/form-data" method="post">
             <input name="file" type="file">
@@ -71,6 +67,102 @@ def render_form(message: str = "", image_url: str = "", is_error: bool = False) 
 @app.get("/", response_class=HTMLResponse)
 async def upload_form():
     return render_form()
+
+
+def build_nav_links(current_path: Path, base_url: str = "/browse") -> dict:
+    parts = list(current_path.parts)
+    parent = current_path.parent if current_path != Path() else None
+    breadcrumbs = []
+
+    for i in range(len(parts)):
+        part_path = Path(*parts[:i+1])
+        breadcrumbs.append((parts[i], f"{base_url}/{part_path.as_posix()}"))
+
+    return {
+        "current": str(current_path),
+        "parent": f"{base_url}/{parent.as_posix()}" if parent else None,
+        "root": f"{base_url}/",
+        "upload": "/",
+        "breadcrumbs": breadcrumbs
+    }
+
+
+def nav_links_html(nav: dict, prev: str = None, next_: str = None) -> str:
+    links = [
+        f"<a href='{nav['upload']}'>Upload Form</a>",
+        f"<a href='{nav['root']}'>Root</a>",
+    ]
+    if nav['parent']:
+        links.append(f"<a href='{nav['parent']}'>Parent</a>")
+    if prev:
+        links.append(f"<a href='{prev}'>Previous</a>")
+    if next_:
+        links.append(f"<a href='{next_}'>Next</a>")
+
+    breadcrumbs = " / ".join(f"<a href='{link}'>{name}</a>" for name, link in nav["breadcrumbs"])
+    return f"<div style='margin-bottom:10px'><strong>Path:</strong> {breadcrumbs}</div>" + \
+           "<div style='margin-bottom:20px'>" + " | ".join(links) + "</div>"
+
+
+@app.get("/browse/{path:path}", response_class=HTMLResponse)
+@app.get("/browse", response_class=HTMLResponse)
+async def browse_path(path: str = ""):
+    target_path = (PIC_ROOT / path).resolve()
+    if not target_path.exists() or not str(target_path).startswith(str(PIC_ROOT.resolve())):
+        raise HTTPException(status_code=404, detail="Not found")
+
+    rel_path = Path(path)
+    nav = build_nav_links(rel_path)
+
+    if target_path.is_dir():
+        # List directories and files
+        entries = sorted(target_path.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower()))
+        dirs = [e for e in entries if e.is_dir()]
+        files = [e for e in entries if e.is_file()]
+
+        content = f"<h2>Directory: /{rel_path}</h2>"
+        content += nav_links_html(nav)
+
+        if dirs:
+            content += "<h3>Subdirectories:</h3><ul>"
+            for d in dirs:
+                p = rel_path / d.name
+                content += f"<li><a href='/browse/{quote(p.as_posix())}'>{d.name}</a></li>"
+            content += "</ul>"
+
+        if files:
+            content += "<h3>Files:</h3><div style='display:flex; flex-wrap:wrap;'>"
+            for f in files:
+                p = rel_path / f.name
+                content += f"<div style='margin:5px'><a href='/browse/{quote(p.as_posix())}'>{f.name}</a></div>"
+            content += "</div>"
+
+        return HTMLResponse(f"<html><body>{content}</body></html>")
+
+    elif target_path.is_file():
+        # Single file view
+        parent_dir = target_path.parent
+        siblings = sorted(parent_dir.iterdir(), key=lambda p: p.name)
+        index = [p.name for p in siblings].index(target_path.name)
+        prev_link = next_link = None
+
+        if index > 0:
+            prev_rel = rel_path.parent / siblings[index - 1].name
+            prev_link = f"/browse/{quote(prev_rel.as_posix())}"
+        if index < len(siblings) - 1:
+            next_rel = rel_path.parent / siblings[index + 1].name
+            next_link = f"/browse/{quote(next_rel.as_posix())}"
+
+        image_path = f"/files/{quote(rel_path.as_posix())}"
+
+        content = f"<h2>Viewing: /{rel_path}</h2>"
+        content += nav_links_html(nav, prev_link, next_link)
+        content += f"<div><img src='{image_path}' style='max-width:100%; max-height:90vh'></div>"
+
+        return HTMLResponse(f"<html><body>{content}</body></html>")
+
+    raise HTTPException(status_code=400, detail="Unsupported path")
+
 
 
 @app.post("/upload-file")

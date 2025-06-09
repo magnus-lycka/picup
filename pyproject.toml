@@ -7,6 +7,7 @@ requires-python = ">=3.13"
 dependencies = [
     "aiofiles>=24.1.0",
     "fastapi>=0.115.12",
+    "filetype>=1.2.0",
     "httpx>=0.28.1",
     "python-multipart>=0.0.20",
     "uvicorn>=0.34.3",

@@ -1,10 +1,10 @@
 import hashlib
 import os
 import re
-from uuid import uuid4
 from datetime import date
 from pathlib import Path
 from urllib.parse import urlparse
+from uuid import uuid4
 
 ALLOWED_IMAGE_TYPES = {
     "image/jpeg": ".jpg",  # Canonicalize to .jpg even for image/jpeg or .jpeg

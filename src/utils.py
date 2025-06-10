@@ -5,7 +5,9 @@ from datetime import date
 from pathlib import Path
 from urllib.parse import urlparse
 from uuid import uuid4
-from PIL import Image
+import warnings
+from PIL import Image, ImageFile
+from contextlib import contextmanager
 
 ALLOWED_IMAGE_TYPES = {
     "image/jpeg": ".jpg",  # Canonicalize to .jpg even for image/jpeg or .jpeg
@@ -17,8 +19,21 @@ ALLOWED_IMAGE_TYPES = {
 ALLOWED_EXTENSIONS = set(ALLOWED_IMAGE_TYPES.values())
 
 
+THUMB_SIZE = (250, 250)
 
-THUMB_SIZE = (200, 200)
+
+
+@contextmanager
+def catch_pil_warnings(filename: str):
+    with warnings.catch_warnings(record=True) as wlist:
+        warnings.simplefilter("always", Image.DecompressionBombWarning)
+        warnings.simplefilter("always", UserWarning)
+
+        yield  # Run your Pillow code inside here
+
+        for w in wlist:
+            print(f"⚠️ Warning while processing {filename}: {w.message} ({w.category.__name__})")
+
 
 def get_thumb_path(img_path: Path, pic_root: Path, thumb_root: Path) -> Path:
     rel_path = img_path.relative_to(pic_root)
@@ -30,9 +45,10 @@ def ensure_thumbnail(img_path: Path, pic_root: Path, thumb_root: Path) -> Path:
         return thumb_path
 
     thumb_path.parent.mkdir(parents=True, exist_ok=True)
-    with Image.open(img_path) as im:
-        im.thumbnail(THUMB_SIZE)
-        im.save(thumb_path, "PNG", optimize=True)
+    with catch_pil_warnings(img_path.name):
+        with Image.open(img_path) as im:
+            im.thumbnail(THUMB_SIZE)
+            im.save(thumb_path, "PNG", optimize=True)
 
     return thumb_path
 

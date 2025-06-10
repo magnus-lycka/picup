@@ -164,7 +164,7 @@ async def browse_path(path: str = ""):
         content = f"<h2>Viewing: /{rel_path}</h2>"
         content += nav_links_html(nav, prev_link, next_link)
         content += "<div style='margin-top:1em'>"
-        content += f"<a href='/similar/{rel_path}'>🔍 Find similar images</a>"
+        content += f"<a href='/variant/{rel_path}'>🔍 Find variant images</a>"
         content += "</div>"
         content += f"<div><img src='{image_path}' style='max-width:100%; max-height:90vh'></div>"        
 
@@ -280,8 +280,8 @@ async def get_file(full_path: str):
     return FileResponse(file_path)
 
 
-@app.get("/similar/{path:path}", response_class=HTMLResponse)
-async def find_similar_to(path: str):
+@app.get("/variant/{path:path}", response_class=HTMLResponse)
+async def find_variant_of(path: str):
     img_path = (PIC_ROOT / path).resolve()
     if not img_path.exists() or not img_path.is_file():
         raise HTTPException(status_code=404, detail="Image not found")
@@ -298,7 +298,7 @@ async def find_similar_to(path: str):
         if other_rel == rel_path:
             continue
         dist = query_hash - imagehash.hex_to_hash(other_phash_str)
-        if dist <= 50:  # adjustable threshold
+        if dist <= 10:  # adjustable threshold
             results.append((dist, other_rel))
 
     results.sort()

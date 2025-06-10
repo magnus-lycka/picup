@@ -1,4 +1,5 @@
 import os
+import pickle
 from contextlib import asynccontextmanager
 from io import BytesIO
 from pathlib import Path
@@ -6,11 +7,14 @@ from urllib.parse import quote
 from uuid import uuid4
 
 import aiofiles
+import faiss
 import httpx
 import imagehash
+import torch
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from PIL import Image
+from transformers import CLIPModel, CLIPProcessor
 
 from db import HashDB
 from utils import (
@@ -119,6 +123,55 @@ def nav_links_html(nav: dict, prev: str = None, next_: str = None) -> str:
         + " | ".join(links)
         + "</div>"
     )
+
+
+# Load model and index once
+clip_model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32").eval()
+clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+clip_device = "cuda" if torch.cuda.is_available() else "cpu"
+clip_model.to(clip_device)
+
+faiss_index = faiss.read_index("clip_index.faiss")
+with open("clip_metadata.pkl", "rb") as f:
+    clip_paths = pickle.load(f)
+
+
+@app.get("/similar-clip/{path:path}", response_class=HTMLResponse)
+async def similar_clip(path: str, k: int = 12):
+
+    img_path = (PIC_ROOT / path).resolve()
+    if not img_path.exists() or not img_path.is_file():
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    # Encode image
+    image = Image.open(img_path).convert("RGB")
+    inputs = clip_processor(images=image, return_tensors="pt")
+    inputs = {k: v.to(clip_device) for k, v in inputs.items()}
+    with torch.no_grad():
+        features = clip_model.get_image_features(**inputs)
+        features /= features.norm(dim=-1, keepdim=True)
+    vec = features.cpu().numpy().astype("float32")
+
+    # Search
+    D, I = faiss_index.search(vec, k + 1)  # include self
+    hits = [
+        (clip_paths[i], float(D[0][j]))
+        for j, i in enumerate(I[0])
+        if clip_paths[i] != path
+    ]
+
+    # Render
+    content = f"<h2>Semantically similar to: /{path}</h2>"
+    content += f"<div><a href='/browse/{path}'>Back to image</a></div><hr><div style='display:flex; flex-wrap:wrap'>"
+    for rel_path, score in hits:
+        content += f"""
+            <div style='margin:10px; text-align:center'>
+                <a href='/browse/{rel_path}'><img src='/thumbs/{rel_path}' style='max-height:150px'></a>
+                <div style='font-size:0.8em'>score: {score:.3f}</div>
+            </div>
+        """
+    content += "</div>"
+    return HTMLResponse(f"<html><body>{content}</body></html>")
 
 
 @app.get("/browse/{path:path}", response_class=HTMLResponse)

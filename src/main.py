@@ -240,7 +240,7 @@ async def browse_path(path: str = ""):
         content += nav_links_html(nav, prev_link, next_link)
         content += "<div style='margin-top:1em'>"
         content += f"<a href='/variant/{rel_path}'>🔍 Find variant images</a>"
-        content += f"<a href='/simialr-clip/{rel_path}'>🔍 Find similar images (CLIP)</a>"
+        content += f"<a href='/similar-clip/{rel_path}'>🔍 Find similar images (CLIP)</a>"
         content += "</div>"
         content += f"<div><img src='{image_path}' style='max-width:100%; max-height:90vh'></div>"
 

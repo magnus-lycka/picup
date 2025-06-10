@@ -13,7 +13,7 @@ import imagehash
 from io import BytesIO
 
 from db import HashDB
-from utils import (ALLOWED_IMAGE_TYPES, file_hash_bytes,
+from utils import (ALLOWED_IMAGE_TYPES, ensure_thumbnail, file_hash_bytes,
                    get_host_from_url, get_storage_path, is_allowed_ext,
                    is_allowed_mime, sanitize_filename)
 
@@ -77,7 +77,7 @@ async def upload_form():
 def build_nav_links(current_path: Path, base_url: str = "/browse") -> dict:
     parts = list(current_path.parts)
     parent = current_path.parent if current_path != Path() else None
-    breadcrumbs = []
+    breadcrumbs = [("root", f"{base_url}/")]
 
     for i in range(len(parts)):
         part_path = Path(*parts[:i+1])
@@ -140,7 +140,7 @@ async def browse_path(path: str = ""):
                 content += (
                     f"<div style='margin:5px; text-align:center'>"
                     f"<a href='{file_url}'><img src='{thumb_url}' style='max-width:150px; max-height:150px; display:block; margin:auto'></a>"
-                    f"<div style='font-size:0.8em'>{f.name}</div></div>"
+                    f"</div>"
                 )
             content += "</div>"
         return HTMLResponse(f"<html><body>{content}</body></html>")

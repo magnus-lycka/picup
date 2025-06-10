@@ -18,12 +18,11 @@ ALLOWED_EXTENSIONS = set(ALLOWED_IMAGE_TYPES.values())
 
 
 
-THUMB_SIZE = (300, 300)
+THUMB_SIZE = (200, 200)
 
 def get_thumb_path(img_path: Path, pic_root: Path, thumb_root: Path) -> Path:
     rel_path = img_path.relative_to(pic_root)
-    # Make extension explicit (e.g., .jpg for all thumbnails)
-    return thumb_root / rel_path.with_suffix(rel_path.suffix + ".jpg")
+    return thumb_root / rel_path.with_suffix(rel_path.suffix + ".png")
 
 def ensure_thumbnail(img_path: Path, pic_root: Path, thumb_root: Path) -> Path:
     thumb_path = get_thumb_path(img_path, pic_root, thumb_root)
@@ -33,7 +32,7 @@ def ensure_thumbnail(img_path: Path, pic_root: Path, thumb_root: Path) -> Path:
     thumb_path.parent.mkdir(parents=True, exist_ok=True)
     with Image.open(img_path) as im:
         im.thumbnail(THUMB_SIZE)
-        im.convert("RGB").save(thumb_path, "JPEG", quality=85)
+        im.save(thumb_path, "PNG", optimize=True)
 
     return thumb_path
 

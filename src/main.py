@@ -163,11 +163,10 @@ async def browse_path(path: str = ""):
 
         content = f"<h2>Viewing: /{rel_path}</h2>"
         content += nav_links_html(nav, prev_link, next_link)
-        content += f"<div><img src='{image_path}' style='max-width:100%; max-height:90vh'></div>"
         content += "<div style='margin-top:1em'>"
         content += f"<a href='/similar/{rel_path}'>🔍 Find similar images</a>"
         content += "</div>"
-        
+        content += f"<div><img src='{image_path}' style='max-width:100%; max-height:90vh'></div>"        
 
         return HTMLResponse(f"<html><body>{content}</body></html>")
 
@@ -299,12 +298,14 @@ async def find_similar_to(path: str):
         if other_rel == rel_path:
             continue
         dist = query_hash - imagehash.hex_to_hash(other_phash_str)
-        if dist <= 10:  # adjustable threshold
+        if dist <= 50:  # adjustable threshold
             results.append((dist, other_rel))
 
     results.sort()
 
-    content = f"<h2>Similar to: /{rel_path}</h2><div style='margin-bottom:1em'><a href='/browse/{rel_path}'>Back to image</a></div>"
+    content = f"<h2>Most similar to: /{rel_path}</h2><div style='margin-bottom:1em'><a href='/browse/{rel_path}'>Back to image</a></div>"
+    content += f"<div style='margin:10px'><strong>Reference</strong><br<a href='/browse/{rel_path}'><img src='/thumbs/{rel_path}' style='max-height:150px'></a><br>{rel_path}</div>"
+
     for dist, match_path in results:
         content += f"<div style='margin:10px'><strong>Distance {dist}</strong><br><a href='/browse/{match_path}'><img src='/thumbs/{match_path}' style='max-height:150px'></a><br>{match_path}</div>"
 
@@ -318,7 +319,7 @@ async def scan_files():
     count_found = 0
     for file in PIC_ROOT.rglob("*"):
         count_found += 1
-        print(f"\r{count_found}", sep='', end=' ', flush=True)
+        print(f"\r{count_found} images scanned.", sep='', end=' ', flush=True)
         if file.is_file():
             if not is_allowed_ext(file.suffix):
                 continue

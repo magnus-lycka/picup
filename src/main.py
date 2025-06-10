@@ -8,6 +8,9 @@ import aiofiles
 import httpx
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from PIL import Image
+import imagehash
+from io import BytesIO
 
 from db import HashDB
 from utils import (ALLOWED_IMAGE_TYPES, file_hash_bytes,
@@ -161,6 +164,10 @@ async def browse_path(path: str = ""):
         content = f"<h2>Viewing: /{rel_path}</h2>"
         content += nav_links_html(nav, prev_link, next_link)
         content += f"<div><img src='{image_path}' style='max-width:100%; max-height:90vh'></div>"
+        content += "<div style='margin-top:1em'>"
+        content += f"<a href='/similar/{{rel_path}}¨>🔍 Find similar images</a>"
+        content += "</div>"
+        
 
         return HTMLResponse(f"<html><body>{content}</body></html>")
 
@@ -207,8 +214,10 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
         await f.write(content)
 
     rel_path = str(full_path.relative_to(PIC_ROOT))
-    hash_db.add(file_hash, rel_path)
-
+    with Image.open(BytesIO(content)) as im:
+        phash = str(imagehash.phash(im))
+    hash_db.add(file_hash, rel_path, phash)
+    
     if "text/html" in request.headers.get("accept", ""):
         return HTMLResponse(render_form("Image stored:", rel_path))
     return JSONResponse({"status": "stored", "path": rel_path})
@@ -255,12 +264,13 @@ async def upload_url(request: Request, url: str = Form(...)):
         await f.write(content)
 
     rel_path = str(full_path.relative_to(PIC_ROOT))
-    hash_db.add(file_hash, rel_path)
+    with Image.open(BytesIO(content)) as im:
+        phash = str(imagehash.phash(im))
+    hash_db.add(file_hash, rel_path, phash)
 
     if accept_html:
         return HTMLResponse(render_form("Image stored:", rel_path))
     return JSONResponse({"status": "stored", "path": rel_path})
-
 
 
 @app.get("/files/{full_path:path}")
@@ -269,6 +279,37 @@ async def get_file(full_path: str):
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(file_path)
+
+
+@app.get("/similar/{path:path}", response_class=HTMLResponse)
+async def find_similar_to(path: str):
+    img_path = (PIC_ROOT / path).resolve()
+    if not img_path.exists() or not img_path.is_file():
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    rel_path = str(Path(path))
+    phash_str = hash_db.get_phash_by_path(rel_path)
+    if not phash_str:
+        raise HTTPException(status_code=404, detail="No perceptual hash available for this image")
+
+    query_hash = imagehash.hex_to_hash(phash_str)
+
+    results = []
+    for other_phash_str, other_rel in hash_db.get_all_phashes():
+        if other_rel == rel_path:
+            continue
+        dist = query_hash - imagehash.hex_to_hash(other_phash_str)
+        if dist <= 10:  # adjustable threshold
+            results.append((dist, other_rel))
+
+    results.sort()
+
+    content = f"<h2>Similar to: /{rel_path}</h2><div style='margin-bottom:1em'><a href='/browse/{rel_path}'>Back to image</a></div>"
+    for dist, match_path in results:
+        content += f"<div style='margin:10px'><strong>Distance {dist}</strong><br><a href='/browse/{match_path}'><img src='/thumbs/{match_path}' style='max-height:150px'></a><br>{match_path}</div>"
+
+    return HTMLResponse(f"<html><body>{content}</body></html>")
+
 
 
 async def scan_files():
@@ -288,7 +329,9 @@ async def scan_files():
                         if found_path != rel_path:
                             print(f"\n{rel_path} is identical to {found_path}")
                     else:
-                        hash_db.add(hash_val, rel_path)
+                        with Image.open(BytesIO(content)) as im:
+                            phash = str(imagehash.phash(im))
+                        hash_db.add(hash_val, rel_path, phash)
                         count_added += 1
             except Exception as e:
                 print(f"⚠️ Error reading {file}: {e}")

@@ -11,12 +11,11 @@ class HashDB:
     def _init_db(self):
         cur = self.conn.cursor()
         cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS images (
+            """CREATE TABLE images (
                 hash TEXT PRIMARY KEY,
-                rel_path TEXT NOT NULL
-            )
-        """
+                rel_path TEXT NOT NULL,
+                phash TEXT
+            );"""
         )
         self.conn.commit()
 
@@ -26,15 +25,23 @@ class HashDB:
         row = cur.fetchone()
         return row[0] if row else None
 
-    def add(self, hash_val: str, rel_path: str):
+    def add(self, hash_val: str, rel_path: str, phash: str = None):
         cur = self.conn.cursor()
-        cur.execute(
-            "INSERT INTO images (hash, rel_path) VALUES (?, ?)",
-            (hash_val, rel_path),
-        )
+        cur.execute("INSERT INTO images (hash, rel_path, phash) VALUES (?, ?, ?)", (hash_val, rel_path, phash))
         self.conn.commit()
 
     def all(self):
         cur = self.conn.cursor()
         cur.execute("SELECT hash, rel_path FROM images")
         return dict(cur.fetchall())
+
+    def get_phash_by_path(self, rel_path: str) -> str | None:
+        cur = self.conn.cursor()
+        cur.execute("SELECT phash FROM images WHERE rel_path = ?", (rel_path,))
+        row = cur.fetchone()
+        return row[0] if row else None
+
+    def get_all_phashes(self) -> list[tuple[str, str]]:
+        cur = self.conn.cursor()
+        cur.execute("SELECT phash, rel_path FROM images WHERE phash IS NOT NULL")
+        return cur.fetchall()

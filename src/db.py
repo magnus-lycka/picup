@@ -11,7 +11,7 @@ class HashDB:
     def _init_db(self):
         cur = self.conn.cursor()
         cur.execute(
-            """CREATE TABLE images (
+            """CREATE TABLE IF NOT EXISTS images (
                 hash TEXT PRIMARY KEY,
                 rel_path TEXT NOT NULL,
                 phash TEXT

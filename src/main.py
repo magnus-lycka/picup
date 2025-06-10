@@ -165,7 +165,7 @@ async def browse_path(path: str = ""):
         content += nav_links_html(nav, prev_link, next_link)
         content += f"<div><img src='{image_path}' style='max-width:100%; max-height:90vh'></div>"
         content += "<div style='margin-top:1em'>"
-        content += f"<a href='/similar/{{rel_path}}¨>🔍 Find similar images</a>"
+        content += f"<a href='/similar/{rel_path}'>🔍 Find similar images</a>"
         content += "</div>"
         
 
@@ -315,8 +315,10 @@ async def find_similar_to(path: str):
 async def scan_files():
     print("🔍 Scanning for unregistered image files...")
     count_added = 0
+    count_found = 0
     for file in PIC_ROOT.rglob("*"):
-        print('.', sep='', end='', flush=True)
+        count_found += 1
+        print(f"\r{count_found}", sep='', end=' ', flush=True)
         if file.is_file():
             if not is_allowed_ext(file.suffix):
                 continue

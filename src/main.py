@@ -1,21 +1,28 @@
 import os
 from contextlib import asynccontextmanager
+from io import BytesIO
 from pathlib import Path
 from urllib.parse import quote
 from uuid import uuid4
 
 import aiofiles
 import httpx
+import imagehash
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from PIL import Image
-import imagehash
-from io import BytesIO
 
 from db import HashDB
-from utils import (ALLOWED_IMAGE_TYPES, ensure_thumbnail, file_hash_bytes,
-                   get_host_from_url, get_storage_path, is_allowed_ext,
-                   is_allowed_mime, sanitize_filename)
+from utils import (
+    ALLOWED_IMAGE_TYPES,
+    ensure_thumbnail,
+    file_hash_bytes,
+    get_host_from_url,
+    get_storage_path,
+    is_allowed_ext,
+    is_allowed_mime,
+    sanitize_filename,
+)
 
 
 @asynccontextmanager
@@ -40,12 +47,16 @@ app = FastAPI(lifespan=lifespan)
 
 def render_form(message: str = "", image_url: str = "", is_error: bool = False) -> str:
     bg_color = "#ffdddd" if is_error else "#ddffdd" if message else "transparent"
-    message_block = f"""
+    message_block = (
+        f"""
         <div style='background:{bg_color}; padding:1em; border-radius:5px; margin-top:1em;'>
             <h3>{message}</h3>
             {f"<a href='/browse/{image_url}'><img src='/files/{image_url}' style='max-width:400px'></a>" if image_url else ""}
         </div>
-    """ if message else ""
+    """
+        if message
+        else ""
+    )
 
     return f"""
     <html>
@@ -80,7 +91,7 @@ def build_nav_links(current_path: Path, base_url: str = "/browse") -> dict:
     breadcrumbs = [("root", f"{base_url}/")]
 
     for i in range(len(parts)):
-        part_path = Path(*parts[:i+1])
+        part_path = Path(*parts[: i + 1])
         breadcrumbs.append((parts[i], f"{base_url}/{part_path.as_posix()}"))
 
     return {
@@ -88,28 +99,35 @@ def build_nav_links(current_path: Path, base_url: str = "/browse") -> dict:
         "parent": f"{base_url}/{parent.as_posix()}" if parent else None,
         "root": f"{base_url}/",
         "upload": "/",
-        "breadcrumbs": breadcrumbs
+        "breadcrumbs": breadcrumbs,
     }
 
 
 def nav_links_html(nav: dict, prev: str = None, next_: str = None) -> str:
-    links = [
-        f"<a href='{nav['upload']}'>Upload Form</a>"]
+    links = [f"<a href='{nav['upload']}'>Upload Form</a>"]
     if prev:
         links.append(f"<a href='{prev}'>Previous</a>")
     if next_:
         links.append(f"<a href='{next_}'>Next</a>")
 
-    breadcrumbs = " / ".join(f"<a href='{link}'>{name}</a>" for name, link in nav["breadcrumbs"])
-    return f"<div style='margin-bottom:10px'><strong>Path:</strong> {breadcrumbs}</div>" + \
-           "<div style='margin-bottom:20px'>" + " | ".join(links) + "</div>"
+    breadcrumbs = " / ".join(
+        f"<a href='{link}'>{name}</a>" for name, link in nav["breadcrumbs"]
+    )
+    return (
+        f"<div style='margin-bottom:10px'><strong>Path:</strong> {breadcrumbs}</div>"
+        + "<div style='margin-bottom:20px'>"
+        + " | ".join(links)
+        + "</div>"
+    )
 
 
 @app.get("/browse/{path:path}", response_class=HTMLResponse)
 @app.get("/browse", response_class=HTMLResponse)
 async def browse_path(path: str = ""):
     target_path = (PIC_ROOT / path).resolve()
-    if not target_path.exists() or not str(target_path).startswith(str(PIC_ROOT.resolve())):
+    if not target_path.exists() or not str(target_path).startswith(
+        str(PIC_ROOT.resolve())
+    ):
         raise HTTPException(status_code=404, detail="Not found")
 
     rel_path = Path(path)
@@ -117,7 +135,9 @@ async def browse_path(path: str = ""):
 
     if target_path.is_dir():
         # List directories and files
-        entries = sorted(target_path.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower()))
+        entries = sorted(
+            target_path.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower())
+        )
         dirs = [e for e in entries if e.is_dir()]
         files = [e for e in entries if e.is_file()]
 
@@ -128,7 +148,9 @@ async def browse_path(path: str = ""):
             content += "<h3>Subdirectories:</h3><ul>"
             for d in dirs:
                 p = rel_path / d.name
-                content += f"<li><a href='/browse/{quote(p.as_posix())}'>{d.name}</a></li>"
+                content += (
+                    f"<li><a href='/browse/{quote(p.as_posix())}'>{d.name}</a></li>"
+                )
             content += "</ul>"
 
         if files:
@@ -166,7 +188,7 @@ async def browse_path(path: str = ""):
         content += "<div style='margin-top:1em'>"
         content += f"<a href='/variant/{rel_path}'>🔍 Find variant images</a>"
         content += "</div>"
-        content += f"<div><img src='{image_path}' style='max-width:100%; max-height:90vh'></div>"        
+        content += f"<div><img src='{image_path}' style='max-width:100%; max-height:90vh'></div>"
 
         return HTMLResponse(f"<html><body>{content}</body></html>")
 
@@ -188,8 +210,13 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
     content_type = file.content_type or ""
     if not is_allowed_mime(content_type):
         if "text/html" in request.headers.get("accept", ""):
-            return HTMLResponse(render_form(f"Unsupported content type: {content_type}", is_error=True), status_code=400)
-        raise HTTPException(status_code=400, detail=f"Unsupported content type: {content_type}")
+            return HTMLResponse(
+                render_form(f"Unsupported content type: {content_type}", is_error=True),
+                status_code=400,
+            )
+        raise HTTPException(
+            status_code=400, detail=f"Unsupported content type: {content_type}"
+        )
 
     content = await file.read()
     file_hash = file_hash_bytes(content)
@@ -197,8 +224,12 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
 
     if existing:
         if "text/html" in request.headers.get("accept", ""):
-            return HTMLResponse(render_form("Image exists:", existing, is_error=True), status_code=409)
-        return JSONResponse({"error": "Image already exists", "path": existing}, status_code=409)
+            return HTMLResponse(
+                render_form("Image exists:", existing, is_error=True), status_code=409
+            )
+        return JSONResponse(
+            {"error": "Image already exists", "path": existing}, status_code=409
+        )
 
     ext = ALLOWED_IMAGE_TYPES[content_type]
     client_ip = request.client.host or "unknown"
@@ -216,7 +247,7 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
     with Image.open(BytesIO(content)) as im:
         phash = str(imagehash.phash(im))
     hash_db.add(file_hash, rel_path, phash)
-    
+
     if "text/html" in request.headers.get("accept", ""):
         return HTMLResponse(render_form("Image stored:", rel_path))
     return JSONResponse({"status": "stored", "path": rel_path})
@@ -232,14 +263,21 @@ async def upload_url(request: Request, url: str = Form(...)):
             response.raise_for_status()
     except Exception as e:
         if accept_html:
-            return HTMLResponse(render_form(f"Failed to fetch URL: {e}", is_error=True), status_code=400)
+            return HTMLResponse(
+                render_form(f"Failed to fetch URL: {e}", is_error=True), status_code=400
+            )
         raise HTTPException(status_code=400, detail=f"Failed to fetch URL: {e}")
 
     content_type = response.headers.get("content-type", "")
     if not is_allowed_mime(content_type):
         if accept_html:
-            return HTMLResponse(render_form(f"Unsupported content type: {content_type}", is_error=True), status_code=400)
-        raise HTTPException(status_code=400, detail=f"Unsupported content type: {content_type}")
+            return HTMLResponse(
+                render_form(f"Unsupported content type: {content_type}", is_error=True),
+                status_code=400,
+            )
+        raise HTTPException(
+            status_code=400, detail=f"Unsupported content type: {content_type}"
+        )
 
     ext = ALLOWED_IMAGE_TYPES[content_type]
     content = response.content
@@ -248,7 +286,9 @@ async def upload_url(request: Request, url: str = Form(...)):
 
     if existing:
         if accept_html:
-            return HTMLResponse(render_form("Image exists:", existing, is_error=True), status_code=409)
+            return HTMLResponse(
+                render_form("Image exists:", existing, is_error=True), status_code=409
+            )
         return JSONResponse(
             {"error": "Image already exists", "path": existing}, status_code=409
         )
@@ -289,7 +329,9 @@ async def find_variant_of(path: str):
     rel_path = str(Path(path))
     phash_str = hash_db.get_phash_by_path(rel_path)
     if not phash_str:
-        raise HTTPException(status_code=404, detail="No perceptual hash available for this image")
+        raise HTTPException(
+            status_code=404, detail="No perceptual hash available for this image"
+        )
 
     query_hash = imagehash.hex_to_hash(phash_str)
 
@@ -312,14 +354,13 @@ async def find_variant_of(path: str):
     return HTMLResponse(f"<html><body>{content}</body></html>")
 
 
-
 async def scan_files():
     print("🔍 Scanning for unregistered image files...")
     count_added = 0
     count_found = 0
     for file in PIC_ROOT.rglob("*"):
         count_found += 1
-        print(f"\r{count_found} images scanned.", sep='', end=' ', flush=True)
+        print(f"\r{count_found} images scanned.", sep="", end=" ", flush=True)
         if file.is_file():
             if not is_allowed_ext(file.suffix):
                 continue

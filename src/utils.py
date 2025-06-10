@@ -1,13 +1,14 @@
 import hashlib
 import os
 import re
+import warnings
+from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
 from urllib.parse import urlparse
 from uuid import uuid4
-import warnings
-from PIL import Image, ImageFile
-from contextlib import contextmanager
+
+from PIL import Image
 
 ALLOWED_IMAGE_TYPES = {
     "image/jpeg": ".jpg",  # Canonicalize to .jpg even for image/jpeg or .jpeg
@@ -22,7 +23,6 @@ ALLOWED_EXTENSIONS = set(ALLOWED_IMAGE_TYPES.values())
 THUMB_SIZE = (250, 250)
 
 
-
 @contextmanager
 def catch_pil_warnings(filename: str):
     with warnings.catch_warnings(record=True) as wlist:
@@ -32,12 +32,15 @@ def catch_pil_warnings(filename: str):
         yield  # Run your Pillow code inside here
 
         for w in wlist:
-            print(f"⚠️ Warning while processing {filename}: {w.message} ({w.category.__name__})")
+            print(
+                f"⚠️ Warning while processing {filename}: {w.message} ({w.category.__name__})"
+            )
 
 
 def get_thumb_path(img_path: Path, pic_root: Path, thumb_root: Path) -> Path:
     rel_path = img_path.relative_to(pic_root)
     return thumb_root / rel_path.with_suffix(rel_path.suffix + ".png")
+
 
 def ensure_thumbnail(img_path: Path, pic_root: Path, thumb_root: Path) -> Path:
     thumb_path = get_thumb_path(img_path, pic_root, thumb_root)

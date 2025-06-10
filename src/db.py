@@ -27,7 +27,10 @@ class HashDB:
 
     def add(self, hash_val: str, rel_path: str, phash: str = None):
         cur = self.conn.cursor()
-        cur.execute("INSERT INTO images (hash, rel_path, phash) VALUES (?, ?, ?)", (hash_val, rel_path, phash))
+        cur.execute(
+            "INSERT INTO images (hash, rel_path, phash) VALUES (?, ?, ?)",
+            (hash_val, rel_path, phash),
+        )
         self.conn.commit()
 
     def all(self):

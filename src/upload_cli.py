@@ -12,9 +12,11 @@ def is_image(file_path: str) -> bool:
     kind = filetype.guess(file_path)
     return kind is not None and kind.mime in allowed_mime_types
 
+
 def guess_mime(file_path: str) -> str:
     kind = filetype.guess(file_path)
     return kind.mime
+
 
 def upload_file(file_path: str, server_url: str) -> httpx.Response:
     """Upload a file to the FastAPI /upload-file endpoint using httpx."""
@@ -22,14 +24,23 @@ def upload_file(file_path: str, server_url: str) -> httpx.Response:
     mime = guess_mime(file_path)
 
     with open(file_path, "rb") as f:
-        files = {'file': (file_name, f, mime)}
+        files = {"file": (file_name, f, mime)}
         with httpx.Client() as client:
             response = client.post(f"{server_url.rstrip('/')}/upload-file", files=files)
     return response
 
 
 def collect_files(path: str, recursive: bool) -> list[str]:
-    skip_dirs = {".git", "__pycache__", ".venv", "venv", "site-packages", "node_modules", ".idea", ".vscode"}
+    skip_dirs = {
+        ".git",
+        "__pycache__",
+        ".venv",
+        "venv",
+        "site-packages",
+        "node_modules",
+        ".idea",
+        ".vscode",
+    }
     """Get all file paths under a directory (optionally recursive), or just return the file."""
     if os.path.isfile(path):
         return [path]
@@ -52,13 +63,20 @@ def collect_files(path: str, recursive: bool) -> list[str]:
     else:
         raise ValueError(f"Not a file or directory: {path}")
 
+
 def main():
     parser = argparse.ArgumentParser(description="Upload images to FastAPI server")
-    parser.add_argument("paths", nargs="+", help="File(s) or directory/ies to upload from")
-    parser.add_argument("-r", "--recursive", action="store_true", help="Recurse into directories")
-    parser.add_argument("--server", default="http://localhost:8000", help="FastAPI base URL")
+    parser.add_argument(
+        "paths", nargs="+", help="File(s) or directory/ies to upload from"
+    )
+    parser.add_argument(
+        "-r", "--recursive", action="store_true", help="Recurse into directories"
+    )
+    parser.add_argument(
+        "--server", default="http://localhost:8000", help="FastAPI base URL"
+    )
     args = parser.parse_args()
-    args.server = args.server.rstrip('/')
+    args.server = args.server.rstrip("/")
 
     all_files = []
 
@@ -89,6 +107,7 @@ def main():
                 print(resp.text)
         except httpx.HTTPError as e:
             print(f"❌ Upload failed: {e}")
+
 
 if __name__ == "__main__":
     main()

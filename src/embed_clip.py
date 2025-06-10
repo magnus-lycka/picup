@@ -8,6 +8,7 @@ import torch
 from PIL import Image
 from tqdm import tqdm
 from transformers import CLIPModel, CLIPProcessor
+from utils import catch_pil_warnings
 
 # Config
 PIC_ROOT = Path(os.getenv("PIC_ROOT", "~/Pictures")).expanduser()
@@ -23,7 +24,8 @@ model.to(device)
 
 # Image transform
 def preprocess_image(image_path):
-    image = Image.open(image_path).convert("RGB")
+    with catch_pil_warnings(image_path.name):
+       image = Image.open(image_path).convert("RGB")
     inputs = processor(images=image, return_tensors="pt")
     return {k: v.to(device) for k, v in inputs.items()}
 

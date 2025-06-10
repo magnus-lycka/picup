@@ -137,7 +137,7 @@ with open("clip_metadata.pkl", "rb") as f:
 
 
 @app.get("/similar-clip/{path:path}", response_class=HTMLResponse)
-async def similar_clip(path: str, k: int = 12):
+async def similar_clip(path: str, k: int = 1000):
 
     img_path = (PIC_ROOT / path).resolve()
     if not img_path.exists() or not img_path.is_file():

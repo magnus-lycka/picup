@@ -10,7 +10,7 @@ from tqdm import tqdm
 from transformers import CLIPModel, CLIPProcessor
 
 # Config
-PIC_ROOT = Path(os.getenv("PIC_ROOT", "pics"))
+PIC_ROOT = Path(os.getenv("PIC_ROOT", "~/Pictures"))
 INDEX_PATH = Path("clip_index.faiss")
 META_PATH = Path("clip_metadata.pkl")
 

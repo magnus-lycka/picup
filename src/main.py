@@ -163,6 +163,12 @@ async def similar_clip(path: str, k: int = 1000):
     # Render
     content = f"<h2>Semantically similar to: /{path}</h2>"
     content += f"<div><a href='/browse/{path}'>Back to image</a></div><hr><div style='display:flex; flex-wrap:wrap'>"
+    content += f"""
+        <div style='margin:10px; text-align:center'>
+            <a href='/browse/{path}'><img src='/thumbs/{path}' style='max-height:150px'></a>
+            <div style='font-size:0.8em'>Reference</div>
+        </div>
+    """
     for rel_path, score in hits:
         content += f"""
             <div style='margin:10px; text-align:center'>

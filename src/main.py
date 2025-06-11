@@ -400,10 +400,10 @@ async def find_variant_of(path: str):
     results.sort()
 
     content = f"<h2>Most similar to: /{rel_path}</h2><div style='margin-bottom:1em'><a href='/browse/{rel_path}'>Back to image</a></div>"
-    content += f"<div style='margin:10px'><strong>Reference</strong><br<a href='/browse/{rel_path}'><img src='/thumbs/{rel_path}' style='max-height:150px'></a><br>{rel_path}</div>"
+    content += f"<div style='margin:10px'><strong>Reference</strong><br><a href='/browse/{rel_path}'><img src='/thumbs/{rel_path}' style='max-height:150px'></a></div>"
 
     for dist, match_path in results:
-        content += f"<div style='margin:10px'><strong>Distance {dist}</strong><br><a href='/browse/{match_path}'><img src='/thumbs/{match_path}' style='max-height:150px'></a><br>{match_path}</div>"
+        content += f"<div style='margin:10px'><strong>Distance {dist}</strong><br><a href='/browse/{match_path}'><img src='/thumbs/{match_path}' style='max-height:150px'></a></div>"
 
     return HTMLResponse(f"<html><body>{content}</body></html>")
 

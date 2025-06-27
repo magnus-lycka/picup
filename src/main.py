@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI):
     print("lifespan... before yield")
     await scan_files()
     yield
-    print("lifespan... before yield")
+    print("lifespan... after yield")
 
 
 # Configuration from environment
